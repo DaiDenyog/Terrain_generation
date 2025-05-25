@@ -104,8 +104,8 @@ int main() {
     Shader terrainShader("shaders/terrain.vert", "shaders/terrain.frag");
 
     // террейн
-    Terrain terrain(256, 64.0f);
-    terrain.generate(20.0f, 0.08f, 4, 0.0f);
+    Terrain terrain(128, 64.0f);
+    terrain.generate(50.0f, 0.04f, 4, 0.0f);
 
     // текстуры
     auto loadTex = [&](const char* path) {
@@ -159,10 +159,10 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            static float amp = 20, freq = 0.08f, ofs = 0; static int oct = 4;
+            static float amp = 50, freq = 0.04f, ofs = 0; static int oct = 4;
             ImGui::Begin("Terrain");
             if (ImGui::SliderFloat("Amplitude", &amp, 0, 100)) terrain.generate(amp, freq, oct, ofs);
-            if (ImGui::SliderFloat("Frequency", &freq, 0, 1)) terrain.generate(amp, freq, oct, ofs);
+            if (ImGui::SliderFloat("Frequency", &freq, 0, 0.1f)) terrain.generate(amp, freq, oct, ofs);
             if (ImGui::SliderInt("Octaves", &oct, 1, 8))     terrain.generate(amp, freq, oct, ofs);
             if (ImGui::SliderFloat("Offset", &ofs, -1000, 1000)) terrain.generate(amp, freq, oct, ofs);
             ImGui::End();
