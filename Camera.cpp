@@ -1,42 +1,56 @@
 #include "Camera.h"
-#include <GLFW/glfw3.h>
-#include <glm/gtc/matrix_transform.hpp>
 
-Camera::Camera()
-    : Position{ 0,50,100 }, Front{ 0,-0.5f,-1 }, Up{ 0,1,0 },
-    yaw{ -90 }, pitch{ -20 }, lastX{ 640 }, lastY{ 360 },
-    firstMouse{ true }, mouseCaptured{ true }
+// Конструктор
+Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
+    : Front(glm::vec3(0.0f, -0.5f, -1.0f)),
+    MovementSpeed(50.0f),
+    MouseSensitivity(0.1f),
+    Zoom(45.0f)
 {
-}
-
-void Camera::ProcessMouse(float xpos, float ypos) {
-    if (!mouseCaptured) return;
-    if (firstMouse) { lastX = xpos; lastY = ypos; firstMouse = false; }
-    float xoff = (xpos - lastX) * 0.1f;
-    float yoff = (lastY - ypos) * 0.1f;
-    lastX = xpos; lastY = ypos;
-    yaw += xoff; pitch += yoff;
-    pitch = glm::clamp(pitch, -89.0f, 89.0f);
-    glm::vec3 dir{
-        cos(glm::radians(yaw)) * cos(glm::radians(pitch)),
-        sin(glm::radians(pitch)),
-        sin(glm::radians(yaw)) * cos(glm::radians(pitch))
-    };
-    Front = glm::normalize(dir);
-}
-
-void Camera::ProcessKeyboard(float deltaTime) {
-    float speed = 50.0f * deltaTime;
-    GLFWwindow* w = glfwGetCurrentContext();
-    if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) Position += speed * Front;
-    if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) Position -= speed * Front;
-    if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS)
-        Position -= glm::normalize(glm::cross(Front, Up)) * speed;
-    if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS)
-        Position += glm::normalize(glm::cross(Front, Up)) * speed;
-    if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(w, true);
+    Position = position;
+    WorldUp = up;
+    Yaw = yaw;
+    Pitch = pitch;
+    updateCameraVectors();
 }
 
 glm::mat4 Camera::GetViewMatrix() const {
     return glm::lookAt(Position, Position + Front, Up);
 }
+
+void Camera::ProcessKeyboard(Camera_Movement direction, float deltaTime) {
+    float velocity = MovementSpeed * deltaTime;
+    if (direction == FORWARD)  Position += Front * velocity;
+    if (direction == BACKWARD) Position -= Front * velocity;
+    if (direction == LEFT)     Position -= Right * velocity;
+    if (direction == RIGHT)    Position += Right * velocity;
+}
+
+void Camera::ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch) {
+    xoffset *= MouseSensitivity;
+    yoffset *= MouseSensitivity;
+    Yaw += xoffset;
+    Pitch += yoffset;
+    if (constrainPitch) {
+        if (Pitch > 89.0f) Pitch = 89.0f;
+        if (Pitch < -89.0f) Pitch = -89.0f;
+    }
+    updateCameraVectors();
+}
+
+void Camera::ProcessMouseScroll(float yoffset) {
+    Zoom -= yoffset;
+    if (Zoom < 1.0f)  Zoom = 1.0f;
+    if (Zoom > 45.0f) Zoom = 45.0f;
+}
+
+void Camera::updateCameraVectors() {
+    glm::vec3 front;
+    front.x = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+    front.y = sin(glm::radians(Pitch));
+    front.z = sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+    Front = glm::normalize(front);
+    Right = glm::normalize(glm::cross(Front, WorldUp));
+    Up = glm::normalize(glm::cross(Right, Front));
+}
+

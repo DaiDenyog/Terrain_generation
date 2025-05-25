@@ -1,166 +1,90 @@
-// main.cpp
+#include <iostream>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/noise.hpp>
+#include "Camera.h"
+#include "Shader.h"
+#include "Terrain.h"
 #include <imgui.h>
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include <vector>
-#include <iostream>
 
-// ————————————————————————————————————————————————————
-//          ПЕРЕМЕННЫЕ КАМЕРЫ (FPS-CAMERA)
-// ————————————————————————————————————————————————————
-glm::vec3 cameraPos = glm::vec3(0.0f, 50.0f, 100.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, -0.5f, -1.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+// размеры окна
+const unsigned SCR_W = 1280, SCR_H = 720;
 
-float yaw = -90.0f;   // начиная смотреть по -Z
-float pitch = -20.0f;   // немного вниз
-float lastX = 1280.0f / 2.0f, lastY = 720.0f / 2.0f;
-bool  firstMouse = true;
-
-float deltaTime = 0.0f, lastFrame = 0.0f;
+void framebuffer_size_callback(GLFWwindow*, int w, int h) {
+    glViewport(0, 0, w, h);
+}
 
 bool mouseCaptured = true;
+Camera camera;
 
-// колбэк движения мыши
-void mouse_callback(GLFWwindow* /*window*/, double xpos, double ypos) {
-    if (!mouseCaptured) return;   // если режим UI — игнорируем повороты камеры
+void mouse_callback(GLFWwindow* /*wnd*/, double xpos, double ypos) {
+    ImGuiIO& io = ImGui::GetIO();
+    if (!mouseCaptured || io.WantCaptureMouse)
+        return;   // либо в UI-режиме, либо ImGui перехватил мышь
+
+    static bool firstMouse = true;
+    static float lastX = SCR_W * 0.5f;
+    static float lastY = SCR_H * 0.5f;
 
     if (firstMouse) {
-        lastX = float(xpos);
-        lastY = float(ypos);
+        lastX = (float)xpos;
+        lastY = (float)ypos;
         firstMouse = false;
     }
-    float xoffset = float(xpos) - lastX;
-    float yoffset = lastY - float(ypos);
-    lastX = float(xpos);
-    lastY = float(ypos);
+    float xoff = (float)xpos - lastX;
+    float yoff = lastY - (float)ypos;
+    lastX = (float)xpos;
+    lastY = (float)ypos;
 
-    const float sensitivity = 0.1f;
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    yaw += xoffset;
-    pitch += yoffset;
-    if (pitch > 89.0f)  pitch = 89.0f;
-    if (pitch < -89.0f) pitch = -89.0f;
-
-    glm::vec3 dir;
-    dir.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-    dir.y = sin(glm::radians(pitch));
-    dir.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    cameraFront = glm::normalize(dir);
+    camera.ProcessMouseMovement(xoff, yoff);
 }
 
-// обработка клавиш
-void processInput(GLFWwindow* window) {
-    float speed = 50.0f * deltaTime;
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        cameraPos += speed * cameraFront;
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        cameraPos -= speed * cameraFront;
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * speed;
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * speed;
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-}
+// колбэк на нажатие кнопок мыши
+void mouse_button_callback(GLFWwindow* window, int button, int action, int /*mods*/) {
+    ImGuiIO& io = ImGui::GetIO();
 
-// ————————————————————————————————————————————————————
-//               ГЛОБАЛЫ ТЕРРАИНА
-// ————————————————————————————————————————————————————
-const float WORLD_SIZE = 64.0f;
-const int GRID_SIZE = 256;
-static std::vector<float>         vertices;
-static std::vector<unsigned int>  indices;
-
-static float g_amplitude = 20.0f;
-static float g_frequency = 0.08f;
-static int   g_octaves = 4;
-static float g_offset = 0.0f;
-
-// генерация высот и цветов
-void GenerateTerrain(int gridSize, float amplitude, float frequency, int octaves, float offset) {
-    size_t totalVerts = size_t(gridSize) * gridSize;
-    vertices.resize(totalVerts * 6);
-
-    int idx = 0;
-    for (int z = 0; z < gridSize; ++z) {
-        for (int x = 0; x < gridSize; ++x) {
-            
-            float xN = float(x) / (gridSize - 1);  // [0..1]
-            float zN = float(z) / (gridSize - 1);  // [0..1]
-            float xPos = ((float)x / (gridSize - 1) - 0.5f) * WORLD_SIZE;
-            float zPos = ((float)z / (gridSize - 1) - 0.5f) * WORLD_SIZE;
-
-
-            float noiseValue = 0.0f, freq = frequency, ampl = 1.0f, maxAmpl = 0.0f;
-            for (int o = 0; o < octaves; ++o) {
-                float perlin = glm::perlin(glm::vec2(xPos * freq + offset, zPos * freq + offset));
-                noiseValue += perlin * ampl;
-                maxAmpl += ampl;
-                freq *= 2.0f; ampl *= 0.5f;
-            }
-            noiseValue /= maxAmpl;
-            float height = (noiseValue * 0.5f + 0.5f) * amplitude;
-
-            vertices[idx++] = xPos;
-            vertices[idx++] = height;
-            vertices[idx++] = zPos;
-
-            glm::vec3 color;
-            float hnorm = height / amplitude;
-            if (hnorm < 0.4f)      color = { 0,0,1 };
-            else if (hnorm < 0.7f) color = { 0,1,0 };
-            else                   color = { 1,1,1 };
-
-            vertices[idx++] = color.r;
-            vertices[idx++] = color.g;
-            vertices[idx++] = color.b;
-        }
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        // ЛКМ — переходим в FPS-режим
+        mouseCaptured = true;
+        // скрыть курсор и «захватить» его
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    }
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+        // ПКМ — переходим в UI-режим
+        mouseCaptured = false;
+        // показать курсор
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 }
 
 int main() {
-    // Init GLFW
-    if (!glfwInit()) return -1;
+    // GLFW
+    glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Perlin Noise Terrain", NULL, NULL);
-    if (!window) { glfwTerminate(); return -1; }
+#ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+    GLFWwindow* window = glfwCreateWindow(SCR_W, SCR_H, "Terrain", NULL, NULL);
+    if (!window) { std::cerr << "Failed GLFW\n"; return -1; }
+
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // GLAD
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) return -1;
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        std::cerr << "Failed GLAD\n"; return -1;
+    }
     glEnable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);
-
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-    glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int) {
-        if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-            // ЛКМ — включаем режим камеры (скрываем курсор)
-            mouseCaptured = true;
-            glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-            firstMouse = true; // сброс, чтобы не было скачка при следующем движении
-        }
-        if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-            // ПКМ — включаем режим UI (показываем курсор)
-            mouseCaptured = false;
-            glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        }
-        });
-
-    // РЕГИСТРАЦИЯ CALLBACK ДЛЯ МЫШИ
-    glfwSetCursorPosCallback(window, mouse_callback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
     // ImGui
     IMGUI_CHECKVERSION();
@@ -169,127 +93,124 @@ int main() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330 core");
 
-    // Шейдеры (vertex/fragment) — без изменений, как у вас
-    const char* vs = R"glsl(
-      #version 330 core
-      layout(location=0) in vec3 aPos;
-      layout(location=1) in vec3 aColor;
-      out vec3 vertexColor;
-      uniform mat4 MVP;
-      void main(){
-        vertexColor = aColor;
-        gl_Position = MVP * vec4(aPos,1.0);
-      }
-    )glsl";
-    const char* fs = R"glsl(
-      #version 330 core
-      in vec3 vertexColor;
-      out vec4 FragColor;
-      void main(){
-        FragColor = vec4(vertexColor,1.0);
-      }
-    )glsl";
-    GLuint vsh = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vsh, 1, &vs, NULL); glCompileShader(vsh);
-    GLuint fsh = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fsh, 1, &fs, NULL); glCompileShader(fsh);
-    GLuint prog = glCreateProgram();
-    glAttachShader(prog, vsh); glAttachShader(prog, fsh);
-    glLinkProgram(prog);
-    glDeleteShader(vsh); glDeleteShader(fsh);
+    // камера
+    
 
-    // индексы
-    indices.reserve((GRID_SIZE - 1) * (GRID_SIZE - 1) * 6);
-    for (int r = 0; r < GRID_SIZE - 1; ++r)
-        for (int c = 0; c < GRID_SIZE - 1; ++c) {
-            unsigned tL = r * GRID_SIZE + c;
-            unsigned bL = (r + 1) * GRID_SIZE + c;
-            unsigned bR = (r + 1) * GRID_SIZE + (c + 1);
-            unsigned tR = r * GRID_SIZE + (c + 1);
-            indices.insert(indices.end(), { tL,bL,bR, tL,bR,tR });
+    // шейдеры
+    Shader terrainShader("shaders/terrain.vert", "shaders/terrain.frag");
+
+    // террейн
+    Terrain terrain(256, 64.0f);
+    terrain.generate(20.0f, 0.08f, 4, 0.0f);
+
+    // текстуры
+    auto loadTex = [&](const char* path) {
+        GLuint tex; glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        int w, h, c;
+        unsigned char* data = stbi_load(path, &w, &h, &c, 0);
+        if (!data) {
+            std::cerr << "Failed to load texture at: " << path << std::endl;
         }
+        if (data) {
+            GLenum fmt = (c == 4 ? GL_RGBA : GL_RGB);
+            glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
+            glGenerateMipmap(GL_TEXTURE_2D);
+        }
+        else std::cerr << "Failed tex " << path << "\n";
+        stbi_image_free(data);
+        return tex;
+        };
+    GLuint grassTex = loadTex("textures/Grass004.png");
+    GLuint rockTex = loadTex("textures/Rock011.png");
+    GLuint snowTex = loadTex("textures/Snow004.png");
 
-    // генерим террейн
-    GenerateTerrain(GRID_SIZE, g_amplitude, g_frequency, g_octaves, g_offset);
+    // shadow map setup omitted for brevity...
+    // lightSpaceMatrix, FBO и depthTexture надо создать здесь
 
-    // VAO/VBO/EBO
-    GLuint VAO, VBO, EBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned), indices.data(), GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    glBindVertexArray(0);
-
-    // рендер-цикл
+    // цикл
     while (!glfwWindowShouldClose(window)) {
-        // время
         float current = (float)glfwGetTime();
-        deltaTime = current - lastFrame;
-        lastFrame = current;
+        static float lastTime = current;
+        float deltaTime = current - lastTime;
+        lastTime = current;
 
-        processInput(window);
-
+        // ввод
         glfwPollEvents();
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+            camera.ProcessKeyboard(FORWARD, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            camera.ProcessKeyboard(BACKWARD, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            camera.ProcessKeyboard(LEFT, deltaTime);
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            camera.ProcessKeyboard(RIGHT, deltaTime);
+
+        // ImGui
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
-        // ImGui панель
-        ImGui::Begin("Terrain Controls");
-        bool dirty = false;
-        if (ImGui::SliderFloat("Amplitude", &g_amplitude, 0, 100)) dirty = true;
-        if (ImGui::SliderFloat("Frequency", &g_frequency, 0, 1)) dirty = true;
-        if (ImGui::SliderInt("Octaves", &g_octaves, 1, 8)) dirty = true;
-        if (ImGui::SliderFloat("Offset", &g_offset, -1000, 1000)) dirty = true;
-        ImGui::End();
-        if (dirty) {
-            GenerateTerrain(GRID_SIZE, g_amplitude, g_frequency, g_octaves, g_offset);
-            glBindBuffer(GL_ARRAY_BUFFER, VBO);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, vertices.size() * sizeof(float), vertices.data());
+        {
+            static float amp = 20, freq = 0.08f, ofs = 0; static int oct = 4;
+            ImGui::Begin("Terrain");
+            if (ImGui::SliderFloat("Amplitude", &amp, 0, 100)) terrain.generate(amp, freq, oct, ofs);
+            if (ImGui::SliderFloat("Frequency", &freq, 0, 1)) terrain.generate(amp, freq, oct, ofs);
+            if (ImGui::SliderInt("Octaves", &oct, 1, 8))     terrain.generate(amp, freq, oct, ofs);
+            if (ImGui::SliderFloat("Offset", &ofs, -1000, 1000)) terrain.generate(amp, freq, oct, ofs);
+            ImGui::End();
         }
 
-        // рендер сцены
+        // рендер
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        int w, h; glfwGetFramebufferSize(window, &w, &h);
-        glViewport(0, 0, w, h);
-        float aspect = float(w) / float(h);
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 500.0f);
-        glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        terrainShader.use();
+        // задаём uniform'ы: model, view, proj, lightSpaceMatrix, sun, viewPos и текстурные блоки
         glm::mat4 model = glm::mat4(1.0f);
-        glm::mat4 MVP = proj * view * model;
+        glm::mat4 view = camera.GetViewMatrix();
+        glm::mat4 proj = glm::perspective(glm::radians(camera.Zoom),
+            float(SCR_W) / SCR_H,
+            0.1f, 500.0f);
+        terrainShader.setMat4("model", model);
+        terrainShader.setMat4("view", view);
+        terrainShader.setMat4("projection", proj);
+        // shadow map и параметры солнца нужно тоже сюда
 
-        glUseProgram(prog);
-        GLint loc = glGetUniformLocation(prog, "MVP");
-        glUniformMatrix4fv(loc, 1, GL_FALSE, &MVP[0][0]);
+        // позиция камеры в шейдер
+        terrainShader.setVec3("viewPos", camera.Position);
 
-        glBindVertexArray(VAO);
-        glDrawElements(GL_TRIANGLES, (GLsizei)indices.size(), GL_UNSIGNED_INT, 0);
+        // параметры направленного света (Солнце)
+        terrainShader.setVec3("sun.direction", glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f)));
+        terrainShader.setVec3("sun.ambient", glm::vec3(1.0f, 1.0f, 1.0f));
+        terrainShader.setVec3("sun.diffuse", glm::vec3(5.0f, 5.0f, 5.0f));
+        terrainShader.setVec3("sun.specular", glm::vec3(1.0f, 1.0f, 1.0f));
 
-        // ImGui draw
+        // текстуры
+        glActiveTexture(GL_TEXTURE0);  glBindTexture(GL_TEXTURE_2D, grassTex);
+        glActiveTexture(GL_TEXTURE1);  glBindTexture(GL_TEXTURE_2D, rockTex);
+        glActiveTexture(GL_TEXTURE2);  glBindTexture(GL_TEXTURE_2D, snowTex);
+        terrainShader.setInt("grassTex", 0);
+        terrainShader.setInt("rockTex", 1);
+        terrainShader.setInt("snowTex", 2);
+        // shadow map в слот 3
+        // glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, depthTex);
+        // terrainShader.setInt("shadowMap",3);
+
+        terrain.draw(terrainShader);
+
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
         glfwSwapBuffers(window);
     }
 
-    // shutdown
+    // очистка
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-    glDeleteProgram(prog);
-    glDeleteBuffers(1, &VBO);
-    glDeleteBuffers(1, &EBO);
-    glDeleteVertexArrays(1, &VAO);
     glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
