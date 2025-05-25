@@ -1,0 +1,61 @@
+# ===== Visual Studio =====
+# кеш и настройки пользователя
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual C++ intermediate files
+*.idb
+*.pdb
+*.ilk
+*.ipch/
+*.log
+
+# VS project files you don’t need to track
+*.vcxproj.user
+*.vcxproj.filters
+
+# Rider
+.idea/
+
+# ===== Папки сборки и бинарники =====
+# выходные каталоги
+x64/
+Release*/
+Debug*/
+build/
+[Bb]in/
+[Oo]bj/
+
+# временные и объектные файлы
+*.obj
+*.o
+*.dll
+*.exe
+*.lib
+*.exp
+*.map
+*.rsp
+
+# препроцессорные файлы
+*.pch
+*.tmp
+*_i.c
+*_p.c
+
+# CMake  
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+
+# NuGet
+*.nupkg
+packages/
+
+# ===== Прочее =====
+*.log
+*.userprefs
