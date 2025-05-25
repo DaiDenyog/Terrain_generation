@@ -125,9 +125,9 @@ int main() {
         stbi_image_free(data);
         return tex;
         };
-    GLuint grassTex = loadTex("textures/Grass004.png");
-    GLuint rockTex = loadTex("textures/Rock011.png");
-    GLuint snowTex = loadTex("textures/Snow004.png");
+    GLuint grassTex = loadTex("textures/Grass004.jpg");
+    GLuint rockTex = loadTex("textures/Rock011.jpg");
+    GLuint snowTex = loadTex("textures/Snow004.jpg");
 
     // shadow map setup omitted for brevity...
     // lightSpaceMatrix, FBO и depthTexture надо создать здесь
