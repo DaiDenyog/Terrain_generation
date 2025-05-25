@@ -74,7 +74,8 @@ void processInput(GLFWwindow* window) {
 // ————————————————————————————————————————————————————
 //               ÃËÎÁÀËÛ ÒÅÐÐÀÈÍÀ
 // ————————————————————————————————————————————————————
-const int GRID_SIZE = 128;
+const float WORLD_SIZE = 64.0f;
+const int GRID_SIZE = 256;
 static std::vector<float>         vertices;
 static std::vector<unsigned int>  indices;
 
@@ -91,8 +92,13 @@ void GenerateTerrain(int gridSize, float amplitude, float frequency, int octaves
     int idx = 0;
     for (int z = 0; z < gridSize; ++z) {
         for (int x = 0; x < gridSize; ++x) {
-            float xPos = float(x) - gridSize / 2.0f;
-            float zPos = float(z) - gridSize / 2.0f;
+            
+            float xN = float(x) / (gridSize - 1);  // [0..1]
+            float zN = float(z) / (gridSize - 1);  // [0..1]
+            float xPos = ((float)x / (gridSize - 1) - 0.5f) * WORLD_SIZE;
+            float zPos = ((float)z / (gridSize - 1) - 0.5f) * WORLD_SIZE;
+
+
             float noiseValue = 0.0f, freq = frequency, ampl = 1.0f, maxAmpl = 0.0f;
             for (int o = 0; o < octaves; ++o) {
                 float perlin = glm::perlin(glm::vec2(xPos * freq + offset, zPos * freq + offset));
