@@ -19,16 +19,16 @@ void framebuffer_size_callback(GLFWwindow*, int w, int h) {
 }
 
 bool mouseCaptured = true;
+bool firstMouse = true;
+float lastX = SCR_W * 0.5f;
+float lastY = SCR_H * 0.5f;
+
 Camera camera;
 
 void mouse_callback(GLFWwindow* /*wnd*/, double xpos, double ypos) {
     ImGuiIO& io = ImGui::GetIO();
     if (!mouseCaptured || io.WantCaptureMouse)
         return;   // либо в UI-режиме, либо ImGui перехватил мышь
-
-    static bool firstMouse = true;
-    static float lastX = SCR_W * 0.5f;
-    static float lastY = SCR_H * 0.5f;
 
     if (firstMouse) {
         lastX = (float)xpos;
@@ -52,6 +52,10 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int /*mod
         mouseCaptured = true;
         // скрыть курсор и Ђзахватитьї его
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        double xpos, ypos;
+        glfwGetCursorPos(window, &xpos, &ypos);
+        lastX = (float)xpos;
+        lastY = (float)ypos;
     }
     if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
         // ѕ ћ Ч переходим в UI-режим
