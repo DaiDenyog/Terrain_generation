@@ -12,7 +12,7 @@
 #include "imgui_impl_opengl3.h"
 
 // размеры окна
-const unsigned SCR_W = 1280, SCR_H = 720;
+const unsigned SCR_W = 1920, SCR_H = 1080;
 
 void framebuffer_size_callback(GLFWwindow*, int w, int h) {
     glViewport(0, 0, w, h);
@@ -136,6 +136,21 @@ int main() {
     // shadow map setup omitted for brevity...
     // lightSpaceMatrix, FBO и depthTexture надо создать здесь
 
+    float sunElevationDeg = 15.0f;               // угол возвышения над горизонтом
+    float sunAzimuthDeg = 0.0f;               // направление по горизонтали (по желанию)
+    float ambientIntensity = 0.8f;
+    float diffuseIntensity = 2.0f;
+    float specularIntensity = 1.5f;
+
+    float el = glm::radians(sunElevationDeg);
+    float az = glm::radians(sunAzimuthDeg);
+    glm::vec3 L = glm::normalize(glm::vec3(
+        cos(el) * cos(az),
+        sin(el),
+        cos(el) * sin(az)
+    ));
+    glm::vec3 sunDir = -L;
+
     // цикл
     while (!glfwWindowShouldClose(window)) {
         float current = (float)glfwGetTime();
@@ -159,14 +174,45 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            static float amp = 50, freq = 0.04f, ofs = 0; static int oct = 4;
+            static float amp = 50, freq = 0.04f, ofs = 0; 
+            static int oct = 4;
+            static float sunAzimuth = 0.0f;   // в градусах 0–360
+            static float sunElevation = 15.0f;  // угол возвышения 0–90
+            static float ambientInt = ambientIntensity;
+            static float diffuseInt = diffuseIntensity;
+            static float specularInt = specularIntensity;
+
             ImGui::Begin("Terrain");
+
             if (ImGui::SliderFloat("Amplitude", &amp, 0, 100)) terrain.generate(amp, freq, oct, ofs);
             if (ImGui::SliderFloat("Frequency", &freq, 0, 0.1f)) terrain.generate(amp, freq, oct, ofs);
             if (ImGui::SliderInt("Octaves", &oct, 1, 8))     terrain.generate(amp, freq, oct, ofs);
             if (ImGui::SliderFloat("Offset", &ofs, -1000, 1000)) terrain.generate(amp, freq, oct, ofs);
+            if (ImGui::SliderFloat("Sun Azimuth", &sunAzimuth, 0.0f, 360.0f)); 
+            if (ImGui::SliderFloat("Sun Elevation", &sunElevation, 0.0f, 90.0f));
+            if (ImGui::SliderFloat("Ambient", &ambientInt, 0.0f, 1.0f));
+            if (ImGui::SliderFloat("Diffuse", &diffuseInt, 0.0f, 5.0f));
+            if (ImGui::SliderFloat("Specular", &specularInt, 0.0f, 5.0f));
+
             ImGui::End();
+            {
+                // сохраняем новые значения
+                ambientIntensity = ambientInt;
+                diffuseIntensity = diffuseInt;
+                specularIntensity = specularInt;
+
+                // пересчёт направления солнца
+                float el = glm::radians(sunElevation);
+                float az = glm::radians(sunAzimuth);
+                glm::vec3 L = glm::normalize(glm::vec3(
+                    cos(el) * cos(az),
+                    sin(el),
+                    cos(el) * sin(az)
+                ));
+                sunDir = -L;
+            }
         }
+
 
         // рендер
         glClearColor(0.1f, 0.1f, 0.2f, 1.0f);
@@ -188,10 +234,10 @@ int main() {
         terrainShader.setVec3("viewPos", camera.Position);
 
         // параметры направленного света (Солнце)
-        terrainShader.setVec3("sun.direction", glm::normalize(glm::vec3(-0.5f, -1.0f, -0.3f)));
-        terrainShader.setVec3("sun.ambient", glm::vec3(1.0f, 1.0f, 1.0f));
-        terrainShader.setVec3("sun.diffuse", glm::vec3(5.0f, 5.0f, 5.0f));
-        terrainShader.setVec3("sun.specular", glm::vec3(1.0f, 1.0f, 1.0f));
+        terrainShader.setVec3("sun.direction", sunDir);
+        terrainShader.setVec3("sun.ambient", glm::vec3(ambientIntensity));
+        terrainShader.setVec3("sun.diffuse", glm::vec3(diffuseIntensity));
+        terrainShader.setVec3("sun.specular", glm::vec3(specularIntensity));
 
         // текстуры
         glActiveTexture(GL_TEXTURE0);  glBindTexture(GL_TEXTURE_2D, grassTex);
