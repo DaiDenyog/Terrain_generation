@@ -154,10 +154,21 @@ int main() {
         stbi_image_free(data);
         return tex;
         };
-    GLuint albedoTex = loadTex("textures/Grass004_1K_JPG_Color.jpg");
-    GLuint normalTex = loadTex("textures/Grass004_1K_JPG_NormalGL.jpg");
-    GLuint roughnessTex = loadTex("textures/Grass004_1K_JPG_Roughness.jpg");
-    GLuint aoTex = loadTex("textures/Grass004_1K_JPG_AmbientOcclusion.jpg");
+    //Grass
+    GLuint grassAlbedoTex = loadTex("textures/Grass004_1K_JPG_Color.jpg");
+    GLuint grassNormalTex = loadTex("textures/Grass004_1K_JPG_NormalGL.jpg");
+    GLuint grassRoughnessTex = loadTex("textures/Grass004_1K_JPG_Roughness.jpg");
+    GLuint grassAOTex = loadTex("textures/Grass004_1K_JPG_AmbientOcclusion.jpg");
+    //Rock
+    GLuint rockAlbedoTex = loadTex("textures/Rock011_1K-JPG_Color.jpg");
+    GLuint rockNormalTex = loadTex("textures/Rock011_1K-JPG_NormalGL.jpg");
+    GLuint rockRoughnessTex = loadTex("textures/Rock011_1K-JPG_Roughness.jpg");
+    GLuint rockAOTex = loadTex("textures/Rock011_1K-JPG_AmbientOcclusion.jpg");
+    //Snow
+    GLuint snowAlbedoTex = loadTex("textures/Snow004_1K-JPG_Color.jpg");
+    GLuint snowNormalTex = loadTex("textures/Snow004_1K-JPG_NormalGL.jpg");
+    GLuint snowRoughnessTex = loadTex("textures/Snow004_1K-JPG_Roughness.jpg");
+
 
     // shadow map setup omitted for brevity...
     // lightSpaceMatrix, FBO и depthTexture надо создать здесь
@@ -260,20 +271,39 @@ int main() {
         terrainShader.setVec3("viewPos", camera.Position);
 
         // параметры направленного света (Солнце)
-        terrainShader.setVec3("sun_direction", sunDir);
-        terrainShader.setVec3("sun_ambient", glm::vec3(ambientIntensity));
-        terrainShader.setVec3("sun_diffuse", glm::vec3(diffuseIntensity));
-        terrainShader.setVec3("sun_specular", glm::vec3(specularIntensity));
+        terrainShader.setVec3("lightDir", sunDir);
+        terrainShader.setVec3("lightColor", glm::vec3(diffuseIntensity));
+        terrainShader.setFloat("ambientFactor", ambientIntensity);
 
         // текстуры
-        terrainShader.setInt("texAlbedo", 0);
-        terrainShader.setInt("texNormal", 1);
-        terrainShader.setInt("texRoughness", 2);
-        terrainShader.setInt("texAO", 3);
-        glActiveTexture(GL_TEXTURE0);  glBindTexture(GL_TEXTURE_2D, albedoTex);
-        glActiveTexture(GL_TEXTURE1);  glBindTexture(GL_TEXTURE_2D, normalTex);
-        glActiveTexture(GL_TEXTURE2);  glBindTexture(GL_TEXTURE_2D, roughnessTex);
-        glActiveTexture(GL_TEXTURE3);  glBindTexture(GL_TEXTURE_2D, aoTex);
+        // Grass
+        terrainShader.setInt("grassAlbedo", 0);
+        terrainShader.setInt("grassNormal", 1);
+        terrainShader.setInt("grassRoughness", 2);
+        terrainShader.setInt("grassAO", 3);
+        // Rock
+        terrainShader.setInt("rockAlbedo", 4);
+        terrainShader.setInt("rockNormal", 5);
+        terrainShader.setInt("rockRoughness", 6);
+        terrainShader.setInt("rockAO", 7);
+        // Snow
+        terrainShader.setInt("snowAlbedo", 8);
+        terrainShader.setInt("snowNormal", 9);
+        terrainShader.setInt("snowRoughness", 10);
+
+        glActiveTexture(GL_TEXTURE0);  glBindTexture(GL_TEXTURE_2D, grassAlbedoTex);
+        glActiveTexture(GL_TEXTURE1);  glBindTexture(GL_TEXTURE_2D, grassNormalTex);
+        glActiveTexture(GL_TEXTURE2);  glBindTexture(GL_TEXTURE_2D, grassRoughnessTex);
+        glActiveTexture(GL_TEXTURE3);  glBindTexture(GL_TEXTURE_2D, grassAOTex);
+
+        glActiveTexture(GL_TEXTURE4);  glBindTexture(GL_TEXTURE_2D, rockAlbedoTex);
+        glActiveTexture(GL_TEXTURE5);  glBindTexture(GL_TEXTURE_2D, rockNormalTex);
+        glActiveTexture(GL_TEXTURE6);  glBindTexture(GL_TEXTURE_2D, rockRoughnessTex);
+        glActiveTexture(GL_TEXTURE7);  glBindTexture(GL_TEXTURE_2D, rockAOTex);
+
+        glActiveTexture(GL_TEXTURE8);  glBindTexture(GL_TEXTURE_2D, snowAlbedoTex);
+        glActiveTexture(GL_TEXTURE9);  glBindTexture(GL_TEXTURE_2D, snowNormalTex);
+        glActiveTexture(GL_TEXTURE10); glBindTexture(GL_TEXTURE_2D, snowRoughnessTex);
         // shadow map в слот 3
         // glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, depthTex);
         // terrainShader.setInt("shadowMap",3);
