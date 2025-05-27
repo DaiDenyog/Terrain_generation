@@ -157,9 +157,9 @@ int main() {
 
     float sunElevationDeg = 15.0f;               // угол возвышени€ над горизонтом
     float sunAzimuthDeg = 0.0f;               // направление по горизонтали (по желанию)
-    float ambientIntensity = 0.15f;
-    float diffuseIntensity = 1.0f;
-    float specularIntensity = 0.5f;
+    float ambientIntensity = 0.23f;
+    float diffuseIntensity = 4.4f;
+    float specularIntensity = 0.4f;
 
     float el = glm::radians(sunElevationDeg);
     float az = glm::radians(sunAzimuthDeg);
@@ -267,11 +267,14 @@ int main() {
         // позици€ камеры в шейдер
         terrainShader.setVec3("viewPos", camera.Position);
 
+
+
         // ¬водим один вектор Ђцвета солнцаї:
-        static glm::vec3 sunColor(1.00f, 0.98f, 0.90f);
-
-
+        static glm::vec3 sunColor(1.00f, 0.98f, 0.60f);
         ImGui::ColorEdit3("Sun Color", (float*)&sunColor);
+
+
+
         // параметры направленного света (—олнце)
         terrainShader.setVec3("lightDir", sunDir);
         terrainShader.setVec3("lightColor", sunColor * diffuseIntensity);
