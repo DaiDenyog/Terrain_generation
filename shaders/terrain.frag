@@ -27,6 +27,7 @@ uniform sampler2D snowAO;
 uniform vec3 lightDir;      // нормализованный
 uniform vec3 lightColor;    // интенсивность
 uniform float ambientFactor;
+uniform float specularFactor;
 uniform vec3 viewPos;
 
 const float PI = 3.14159265359;
@@ -126,7 +127,7 @@ void main() {
     vec3  kD   = (vec3(1.0)-F);
 
     float NdotL = max(dot(N,L),0.0);
-    vec3 Lo = (kD * albedo/PI + spec) * lightColor * NdotL;
+    vec3 Lo = (kD * albedo/PI + spec * specularFactor) * lightColor * NdotL;
     vec3 ambient = ambientFactor * albedo * ao;
     vec3 color = ambient + Lo;
 

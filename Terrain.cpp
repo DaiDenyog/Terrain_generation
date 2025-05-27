@@ -39,7 +39,8 @@ void Terrain::generate(float amplitude, float frequency, int octaves, float offs
                 freq *= 2;
                 amp *= 0.5f;
             }
-            n = (n / maxA) * 0.5f + 0.5f;
+            n = (n / maxA)* 0.5f + 0.5f;
+            n = pow(n, 2.0f);
             float yPos = n * amplitude;
 
             // push: pos

@@ -28,7 +28,7 @@ Camera camera;
 void mouse_callback(GLFWwindow* /*wnd*/, double xpos, double ypos) {
     ImGuiIO& io = ImGui::GetIO();
     if (!mouseCaptured || io.WantCaptureMouse)
-        return;   // либо в UI-режиме, либо ImGui перехватил мышь
+        return;
 
     if (firstMouse) {
         lastX = (float)xpos;
@@ -43,27 +43,6 @@ void mouse_callback(GLFWwindow* /*wnd*/, double xpos, double ypos) {
     camera.ProcessMouseMovement(xoff, yoff);
 }
 
-// колбэк на нажатие кнопок мыши
-void mouse_button_callback(GLFWwindow* window, int button, int action, int /*mods*/) {
-    ImGuiIO& io = ImGui::GetIO();
-
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        // Ћ ћ Ч переходим в FPS-режим
-        mouseCaptured = true;
-        // скрыть курсор и Ђзахватитьї его
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        double xpos, ypos;
-        glfwGetCursorPos(window, &xpos, &ypos);
-        lastX = (float)xpos;
-        lastY = (float)ypos;
-    }
-    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-        // ѕ ћ Ч переходим в UI-режим
-        mouseCaptured = false;
-        // показать курсор
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }
-}
 
 int main() {
     // GLFW
@@ -80,7 +59,6 @@ int main() {
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -154,6 +132,8 @@ int main() {
         stbi_image_free(data);
         return tex;
         };
+
+
     //Grass
     GLuint grassAlbedoTex = loadTex("textures/Grass004_1K_JPG_Color.jpg");
     GLuint grassNormalTex = loadTex("textures/Grass004_1K_JPG_NormalGL.jpg");
@@ -176,7 +156,7 @@ int main() {
     float sunElevationDeg = 15.0f;               // угол возвышени€ над горизонтом
     float sunAzimuthDeg = 0.0f;               // направление по горизонтали (по желанию)
     float ambientIntensity = 0.8f;
-    float diffuseIntensity = 2.0f;
+    float diffuseIntensity = 8.0f;
     float specularIntensity = 1.5f;
 
     float el = glm::radians(sunElevationDeg);
@@ -197,6 +177,19 @@ int main() {
 
         // ввод
         glfwPollEvents();
+        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+            if (!mouseCaptured) {
+                mouseCaptured = true;
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                firstMouse = true;  // сбросим дельту мыши, чтобы избежать рывка
+            }
+        }
+        else {
+            if (mouseCaptured) {
+                mouseCaptured = false;
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
+        }
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
             camera.ProcessKeyboard(FORWARD, deltaTime);
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
@@ -227,9 +220,9 @@ int main() {
             if (ImGui::SliderFloat("Offset", &ofs, -1000, 1000)) terrain.generate(amp, freq, oct, ofs);
             if (ImGui::SliderFloat("Sun Azimuth", &sunAzimuth, 0.0f, 360.0f)); 
             if (ImGui::SliderFloat("Sun Elevation", &sunElevation, 0.0f, 90.0f));
-            if (ImGui::SliderFloat("Ambient", &ambientInt, 0.0f, 1.0f));
-            if (ImGui::SliderFloat("Diffuse", &diffuseInt, 0.0f, 5.0f));
-            if (ImGui::SliderFloat("Specular", &specularInt, 0.0f, 5.0f));
+            if (ImGui::SliderFloat("Ambient", &ambientInt, 0.0f, 5.0f));
+            if (ImGui::SliderFloat("Diffuse", &diffuseInt, 0.0f, 20.0f));
+            if (ImGui::SliderFloat("Specular", &specularInt, 0.0f, 20.0f));
 
             ImGui::End();
             {
@@ -270,43 +263,46 @@ int main() {
         // позици€ камеры в шейдер
         terrainShader.setVec3("viewPos", camera.Position);
 
+        // ¬водим один вектор Ђцвета солнцаї:
+        static glm::vec3 sunColor(1.0f, 0.95f, 0.8f);
+        ImGui::ColorEdit3("Sun Color", (float*)&sunColor);
         // параметры направленного света (—олнце)
         terrainShader.setVec3("lightDir", sunDir);
-        terrainShader.setVec3("lightColor", glm::vec3(diffuseIntensity));
+        terrainShader.setVec3("lightColor", sunColor * diffuseIntensity);
         terrainShader.setFloat("ambientFactor", ambientIntensity);
+        terrainShader.setFloat("specularFactor", specularIntensity);
 
         // текстуры
+        
         // Grass
         terrainShader.setInt("grassAlbedo", 0);
         terrainShader.setInt("grassNormal", 1);
         terrainShader.setInt("grassRoughness", 2);
         terrainShader.setInt("grassAO", 3);
-        // Rock
-        terrainShader.setInt("rockAlbedo", 4);
-        terrainShader.setInt("rockNormal", 5);
-        terrainShader.setInt("rockRoughness", 6);
-        terrainShader.setInt("rockAO", 7);
-        // Snow
-        terrainShader.setInt("snowAlbedo", 8);
-        terrainShader.setInt("snowNormal", 9);
-        terrainShader.setInt("snowRoughness", 10);
-
         glActiveTexture(GL_TEXTURE0);  glBindTexture(GL_TEXTURE_2D, grassAlbedoTex);
         glActiveTexture(GL_TEXTURE1);  glBindTexture(GL_TEXTURE_2D, grassNormalTex);
         glActiveTexture(GL_TEXTURE2);  glBindTexture(GL_TEXTURE_2D, grassRoughnessTex);
         glActiveTexture(GL_TEXTURE3);  glBindTexture(GL_TEXTURE_2D, grassAOTex);
 
+        // Rock
+        terrainShader.setInt("rockAlbedo", 4);
+        terrainShader.setInt("rockNormal", 5);
+        terrainShader.setInt("rockRoughness", 6);
+        terrainShader.setInt("rockAO", 7);
         glActiveTexture(GL_TEXTURE4);  glBindTexture(GL_TEXTURE_2D, rockAlbedoTex);
         glActiveTexture(GL_TEXTURE5);  glBindTexture(GL_TEXTURE_2D, rockNormalTex);
         glActiveTexture(GL_TEXTURE6);  glBindTexture(GL_TEXTURE_2D, rockRoughnessTex);
         glActiveTexture(GL_TEXTURE7);  glBindTexture(GL_TEXTURE_2D, rockAOTex);
 
+        // Snow
+        terrainShader.setInt("snowAlbedo", 8);
+        terrainShader.setInt("snowNormal", 9);
+        terrainShader.setInt("snowRoughness", 10);
         glActiveTexture(GL_TEXTURE8);  glBindTexture(GL_TEXTURE_2D, snowAlbedoTex);
         glActiveTexture(GL_TEXTURE9);  glBindTexture(GL_TEXTURE_2D, snowNormalTex);
         glActiveTexture(GL_TEXTURE10); glBindTexture(GL_TEXTURE_2D, snowRoughnessTex);
-        // shadow map в слот 3
-        // glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, depthTex);
-        // terrainShader.setInt("shadowMap",3);
+        
+
 
         terrain.draw(terrainShader);
 
