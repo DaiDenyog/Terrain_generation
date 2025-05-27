@@ -68,6 +68,8 @@ int main() {
     }
     glEnable(GL_DEPTH_TEST);
 
+    glFrontFace(GL_CW);
+
     // ImGui
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -155,9 +157,9 @@ int main() {
 
     float sunElevationDeg = 15.0f;               // угол возвышени€ над горизонтом
     float sunAzimuthDeg = 0.0f;               // направление по горизонтали (по желанию)
-    float ambientIntensity = 0.8f;
-    float diffuseIntensity = 8.0f;
-    float specularIntensity = 1.5f;
+    float ambientIntensity = 0.15f;
+    float diffuseIntensity = 1.0f;
+    float specularIntensity = 0.5f;
 
     float el = glm::radians(sunElevationDeg);
     float az = glm::radians(sunAzimuthDeg);
@@ -166,7 +168,9 @@ int main() {
         sin(el),
         cos(el) * sin(az)
     ));
-    glm::vec3 sunDir = -L;
+    glm::vec3 sunDir = L;
+
+
 
     // цикл
     while (!glfwWindowShouldClose(window)) {
@@ -219,10 +223,10 @@ int main() {
             if (ImGui::SliderInt("Octaves", &oct, 1, 8))     terrain.generate(amp, freq, oct, ofs);
             if (ImGui::SliderFloat("Offset", &ofs, -1000, 1000)) terrain.generate(amp, freq, oct, ofs);
             if (ImGui::SliderFloat("Sun Azimuth", &sunAzimuth, 0.0f, 360.0f)); 
-            if (ImGui::SliderFloat("Sun Elevation", &sunElevation, 0.0f, 90.0f));
+            if (ImGui::SliderFloat("Sun Elevation", &sunElevation, 0.0f, 360.0f));
             if (ImGui::SliderFloat("Ambient", &ambientInt, 0.0f, 5.0f));
             if (ImGui::SliderFloat("Diffuse", &diffuseInt, 0.0f, 20.0f));
-            if (ImGui::SliderFloat("Specular", &specularInt, 0.0f, 20.0f));
+            if (ImGui::SliderFloat("Specular", &specularInt, 0.0f, 2.0f));
 
             ImGui::End();
             {
@@ -239,7 +243,7 @@ int main() {
                     sin(el),
                     cos(el) * sin(az)
                 ));
-                sunDir = -L;
+                sunDir = L;
             }
         }
 
@@ -264,7 +268,9 @@ int main() {
         terrainShader.setVec3("viewPos", camera.Position);
 
         // ¬водим один вектор Ђцвета солнцаї:
-        static glm::vec3 sunColor(1.0f, 0.95f, 0.8f);
+        static glm::vec3 sunColor(1.00f, 0.98f, 0.90f);
+
+
         ImGui::ColorEdit3("Sun Color", (float*)&sunColor);
         // параметры направленного света (—олнце)
         terrainShader.setVec3("lightDir", sunDir);

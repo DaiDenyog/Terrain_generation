@@ -72,6 +72,7 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 }
 
 void main() {
+    
     // высота в мировых координатах
     float h = fs_in.FragPos.y;
 

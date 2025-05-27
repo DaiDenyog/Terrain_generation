@@ -92,7 +92,7 @@ void Terrain::computeNormals() {
     for (size_t i = 0; i < indices.size(); i += 3) {
         int a = indices[i + 0], b = indices[i + 1], c = indices[i + 2];
         glm::vec3 v0 = pos(a), v1 = pos(b), v2 = pos(c);
-        glm::vec3 n = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+        glm::vec3 n = glm::normalize(glm::cross(v2 - v0, v1 - v0));
         norms[a] += n;
         norms[b] += n;
         norms[c] += n;
