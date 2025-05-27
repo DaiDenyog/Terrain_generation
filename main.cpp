@@ -108,30 +108,56 @@ int main() {
     terrain.generate(50.0f, 0.04f, 4, 0.0f);
 
     // текстуры
-    auto loadTex = [&](const char* path) {
-        GLuint tex; glGenTextures(1, &tex);
+    auto loadTex = [&](const char* path) -> GLuint {
+        int w, h, n;
+        unsigned char* data = stbi_load(path, &w, &h, &n, 0);
+        if (!data) {
+            std::cerr << "Failed to load texture at: " << path << "\n";
+            return 0;
+        }
+
+        GLenum internalFormat, format;
+        if (n == 1) {
+            internalFormat = GL_R8;
+            format = GL_RED;
+            // важно для 1-байтовых строк:
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        }
+        else if (n == 3) {
+            internalFormat = GL_RGB8;
+            format = GL_RGB;
+        }
+        else if (n == 4) {
+            internalFormat = GL_RGBA8;
+            format = GL_RGBA;
+        }
+        else {
+            // неожиданный формат
+            stbi_image_free(data);
+            std::cerr << "Unsupported channels: " << n << " in " << path << "\n";
+            return 0;
+        }
+
+        GLuint tex;
+        glGenTextures(1, &tex);
         glBindTexture(GL_TEXTURE_2D, tex);
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat,
+            w, h, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // ваши привычные параметры
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        int w, h, c;
-        unsigned char* data = stbi_load(path, &w, &h, &c, 0);
-        if (!data) {
-            std::cerr << "Failed to load texture at: " << path << std::endl;
-        }
-        if (data) {
-            GLenum fmt = (c == 4 ? GL_RGBA : GL_RGB);
-            glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
-            glGenerateMipmap(GL_TEXTURE_2D);
-        }
-        else std::cerr << "Failed tex " << path << "\n";
+
         stbi_image_free(data);
         return tex;
         };
-    GLuint grassTex = loadTex("textures/Grass004.jpg");
-    GLuint rockTex = loadTex("textures/Rock011.jpg");
-    GLuint snowTex = loadTex("textures/Snow004.jpg");
+    GLuint albedoTex = loadTex("textures/Grass004_1K_JPG_Color.jpg");
+    GLuint normalTex = loadTex("textures/Grass004_1K_JPG_NormalGL.jpg");
+    GLuint roughnessTex = loadTex("textures/Grass004_1K_JPG_Roughness.jpg");
+    GLuint aoTex = loadTex("textures/Grass004_1K_JPG_AmbientOcclusion.jpg");
 
     // shadow map setup omitted for brevity...
     // lightSpaceMatrix, FBO и depthTexture надо создать здесь
@@ -234,18 +260,20 @@ int main() {
         terrainShader.setVec3("viewPos", camera.Position);
 
         // параметры направленного света (Солнце)
-        terrainShader.setVec3("sun.direction", sunDir);
-        terrainShader.setVec3("sun.ambient", glm::vec3(ambientIntensity));
-        terrainShader.setVec3("sun.diffuse", glm::vec3(diffuseIntensity));
-        terrainShader.setVec3("sun.specular", glm::vec3(specularIntensity));
+        terrainShader.setVec3("sun_direction", sunDir);
+        terrainShader.setVec3("sun_ambient", glm::vec3(ambientIntensity));
+        terrainShader.setVec3("sun_diffuse", glm::vec3(diffuseIntensity));
+        terrainShader.setVec3("sun_specular", glm::vec3(specularIntensity));
 
         // текстуры
-        glActiveTexture(GL_TEXTURE0);  glBindTexture(GL_TEXTURE_2D, grassTex);
-        glActiveTexture(GL_TEXTURE1);  glBindTexture(GL_TEXTURE_2D, rockTex);
-        glActiveTexture(GL_TEXTURE2);  glBindTexture(GL_TEXTURE_2D, snowTex);
-        terrainShader.setInt("grassTex", 0);
-        terrainShader.setInt("rockTex", 1);
-        terrainShader.setInt("snowTex", 2);
+        terrainShader.setInt("texAlbedo", 0);
+        terrainShader.setInt("texNormal", 1);
+        terrainShader.setInt("texRoughness", 2);
+        terrainShader.setInt("texAO", 3);
+        glActiveTexture(GL_TEXTURE0);  glBindTexture(GL_TEXTURE_2D, albedoTex);
+        glActiveTexture(GL_TEXTURE1);  glBindTexture(GL_TEXTURE_2D, normalTex);
+        glActiveTexture(GL_TEXTURE2);  glBindTexture(GL_TEXTURE_2D, roughnessTex);
+        glActiveTexture(GL_TEXTURE3);  glBindTexture(GL_TEXTURE_2D, aoTex);
         // shadow map в слот 3
         // glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, depthTex);
         // terrainShader.setInt("shadowMap",3);

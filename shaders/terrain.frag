@@ -1,70 +1,98 @@
-#version 330 core
+﻿#version 330 core
+
 in VS_OUT {
     vec3 FragPos;
-    vec3 Normal;
     vec2 TexCoord;
-    vec4 FragPosLightSpace;
+    mat3 TBN;
 } fs_in;
 
 out vec4 FragColor;
 
-struct DirLight {
-    vec3 direction;
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-};
-uniform DirLight sun;
 uniform vec3 viewPos;
-uniform sampler2D grassTex;
-uniform sampler2D rockTex;
-uniform sampler2D snowTex;
-uniform sampler2D shadowMap;
 
-float ShadowCalculation(vec4 fragPosLightSpace) {
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords = projCoords * 0.5 + 0.5;
-    if(projCoords.z > 1.0) return 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-    float shadow = 0.0;
-    float bias = 0.005;
-    for(int x=-1; x<=1; ++x)
-        for(int y=-1; y<=1; ++y) {
-            float pcf = texture(shadowMap,
-                projCoords.xy + vec2(x,y)*texelSize).r;
-            shadow += (projCoords.z - bias > pcf) ? 1.0 : 0.0;
-        }
-    shadow /= 9.0;
-    return shadow;
+// PBR-текстуры (альбедо, нормали, roughness, AO)
+uniform sampler2D texAlbedo;
+uniform sampler2D texNormal;
+uniform sampler2D texRoughness;
+uniform sampler2D texAO;
+
+// параметры направленного света (Солнце)
+uniform vec3 sun_direction;
+uniform vec3 sun_color;        // интенсивность/цвет света
+uniform float  sun_ambient;    // фоновая составляющая
+
+const float PI = 3.14159265359;
+
+// GGX / Trowbridge-Reitz нормал распределения
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
+    float a      = roughness*roughness;
+    float a2     = a*a;
+    float NdotH  = max(dot(N, H), 0.0);
+    float denom  = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
+    return a2 / (PI * denom * denom);
+}
+
+// Schlick-GGX geometry term
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = roughness + 1.0;
+    float k = (r*r) / 8.0;
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx1 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx2 = GeometrySchlickGGX(NdotL, roughness);
+    return ggx1 * ggx2;
+}
+
+// приближение Fresnel (Schlick)
+vec3 FresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
 void main() {
-    // �������� ������� �� ������
-    float height = fs_in.FragPos.y;
-    float h1 = 20.0, h2 = 40.0, blend = 5.0;
-    float gW = clamp(1.0 - smoothstep(h1-blend,h1+blend,height),0,1);
-    float sW = clamp(smoothstep(h2-blend,h2+blend,height),0,1);
-    float rW = clamp(1.0 - gW - sW,0,1);
-    vec2 uv = fs_in.TexCoord;
-    vec3 grass = texture(grassTex, uv).rgb;
-    vec3 rock  = texture(rockTex,  uv).rgb;
-    vec3 snow  = texture(snowTex,  uv).rgb;
-    vec3 baseColor = gW*grass + rW*rock + sW*snow;
+    // 1 семплинг карт
+    vec3 albedo    = pow(texture(texAlbedo, fs_in.TexCoord).rgb, vec3(2.2)); // sRGB->linear
+    vec3 normMap   = texture(texNormal, fs_in.TexCoord).rgb * 2.0 - 1.0;
+    float roughness= texture(texRoughness, fs_in.TexCoord).r;
+    float ao       = texture(texAO, fs_in.TexCoord).r;
 
-    // Blinn-Phong
-    vec3 N = normalize(fs_in.Normal);
-    vec3 L = normalize(-sun.direction);
+    // 2 TBN → мировая нормаль
+    vec3 N = normalize(fs_in.TBN * normMap);
+
+    // 3 векторы
     vec3 V = normalize(viewPos - fs_in.FragPos);
-    vec3 H = normalize(L + V);
-    float diff = max(dot(N,L),0.0);
-    float spec = pow(max(dot(N,H),0.0), 32.0);
-    vec3 ambient  = sun.ambient  * baseColor;
-    vec3 diffuse  = sun.diffuse  * diff * baseColor;
-    vec3 specular = sun.specular * spec * vec3(1.0);
+    vec3 L = normalize(-sun_direction);
+    vec3 H = normalize(V + L);
 
-    // ����
-    float shadow = ShadowCalculation(fs_in.FragPosLightSpace);
-    vec3 lighting = ambient + (1.0 - shadow)*(diffuse + specular);
+    // 4 PBR компоненты
+    // базовый F0 для диэлектриков ≈ 0.04
+    vec3 F0 = vec3(0.04);
+    vec3 F  = FresnelSchlick(max(dot(H, V), 0.0), F0);
+    float D = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(N, V, L, roughness);
 
-    FragColor = vec4(lighting, 1.0);
+    vec3 numerator    = D * G * F;
+    float denom       = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+    vec3 specular     = numerator / denom;
+
+    // диффузная часть Ламберта
+    vec3 kD = vec3(1.0) - F;
+    vec3 diffuse = kD * albedo / PI;
+
+    float NdotL = max(dot(N, L), 0.0);
+    vec3 radiance = sun_color;
+
+    vec3 Lo = (diffuse + specular) * radiance * NdotL;
+
+    // 5 ambient occlusion + фон
+    vec3 ambient = sun_ambient * albedo * ao;
+
+    vec3 color = ambient + Lo;
+
+    // gamma-correction back to sRGB
+    color = pow(color, vec3(1.0/2.2));
+
+    FragColor = vec4(color, 1.0);
 }
